@@ -119,9 +119,9 @@ def generate_qr_code_with_basic_info(first_name, last_name, email, number, compa
 def send_email(to_email, last_name, qr_filename):
     print("Attempting to send email...")
 
-    from_email = "aron.resty@jachinboaz.com.ph"  # Your Gmail address
-    password = "B7f6sxMu7a"  # Your Gmail App Password
-    smtp_server = "mail.jachinboaz.com.ph"
+    from_email = sender_email  # Your Gmail address
+    password = sender_password  # Your Gmail App Password
+    smtp_server = "smtp.gmail.com"
     smtp_port = 587  # For TLS
 
     subject = f"PhilMach 2024 Registration Confirmed - {last_name.upper()}"
