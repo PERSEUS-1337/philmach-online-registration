@@ -24,8 +24,8 @@ load_dotenv()
 # Access environment variables
 secret_key = os.getenv("SECRET_KEY")
 database_url = os.getenv("DATABASE_URL")
-sender_email = os.getenv("SENDER_EMAIL")
-sender_password = os.getenv("SENDER_PASSWORD")
+sender_email = os.getenv("SENDER_EMAIL_v3")
+sender_password = os.getenv("SENDER_PASSWORD_v3")
 
 # Load the service account credentials
 creds = Credentials.from_service_account_file(os.getenv("GSHEET_CREDS"))
@@ -52,6 +52,7 @@ INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS"))
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
 
 def save_to_csv(data, file_path):
     with open(file_path, mode="w", newline="") as file:

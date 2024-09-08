@@ -1,135 +1,8 @@
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-from PIL import Image, ImageDraw, ImageFont, ImageWin
-from pyzbar.pyzbar import decode
-import hashlib
-import qrcode
-import cv2
-
-import win32print
-import win32api
-import win32ui
-
-import time
-import smtplib
 import os
 
-# Load the service account credentials
-creds = Credentials.from_service_account_file(
-    "..//philmach-qr-registration-3e8120628a48.json"
-)
-
-# Build the service
-sheets_api = build("sheets", "v4", credentials=creds)
-SPREADSHEET_ID = "1059XcoaLZkbi-tS8j6lClfxl29gHkshdxPoS-a3Ey_I"
-
-
-# Function to print the QR code image using the default Windows printer
-# def print_qr_code(filename):
-#     # Define the desired size in millimeters and convert to pixels
-#     desired_width_mm = 70
-#     desired_height_mm = 30
-#     dpi = 5  # Commonly used DPI for printing
-#     width_px = int(desired_width_mm * dpi / 25.4)  # Convert mm to inches and then to pixels
-#     height_px = int(desired_height_mm * dpi / 25.4)
-#
-#     # Get the default printer name
-#     printer_name = win32print.GetDefaultPrinter()
-#
-#     # Open the image file
-#     img = Image.open(filename)
-#     img = img.convert('RGB')  # Ensure the image is in RGB mode
-#
-#     # Resize the image to the desired size
-#     img = img.resize((width_px, height_px), Image.LANCZOS)
-#
-#     # Start the print job
-#     hdc = win32ui.CreateDC()
-#     hdc.CreatePrinterDC(printer_name)
-#     hdc.StartDoc(filename)
-#     hdc.StartPage()
-#
-#     # Get the printable area of the printer
-#     printer_width = hdc.GetDeviceCaps(8)  # HORZRES
-#     printer_height = hdc.GetDeviceCaps(10)  # VERTRES
-#
-#     # Determine the position where the image should be printed
-#     x_position = (printer_width - width_px) // 2
-#     y_position = (printer_height - height_px) // 2
-#
-#     # Convert the image to a DIB (Device Independent Bitmap) and draw it on the printer device context
-#     dib = ImageWin.Dib(img)
-#     dib.draw(hdc.GetHandleOutput(), (x_position, y_position, x_position + width_px, y_position + height_px))
-#
-#     # End the page and the print job
-#     hdc.EndPage()
-#     hdc.EndDoc()
-#
-#     # Clean up
-#     hdc.DeleteDC()
-
-
-# Function to print the QR code image using the default Windows printer
-def print_qr_code(filename):
-    # Define the label size in millimeters
-    label_width_mm = 70
-    label_height_mm = 50
-
-    # Define the QR code size in millimeters
-    qr_width_mm = 45
-    qr_height_mm = 45
-
-    # Convert millimeters to pixels using a typical DPI for thermal printers
-    dpi = 175  # Assuming a 300 DPI printer
-    label_width_px = int(
-        label_width_mm * dpi / 25.4
-    )  # Convert mm to inches and then to pixels
-    label_height_px = int(label_height_mm * dpi / 25.4)
-    qr_width_px = int(qr_width_mm * dpi / 25.4)
-    qr_height_px = int(qr_height_mm * dpi / 25.4)
-
-    # Get the default printer name
-    printer_name = win32print.GetDefaultPrinter()
-
-    # Open the image file
-    img = Image.open(filename)
-    img = img.convert("RGB")  # Ensure the image is in RGB mode
-
-    # Resize the QR code image to the desired QR code size
-    img = img.resize((qr_width_px, qr_height_px), Image.LANCZOS)
-
-    # Start the print job
-    hdc = win32ui.CreateDC()
-    hdc.CreatePrinterDC(printer_name)
-    hdc.StartDoc(filename)
-    hdc.StartPage()
-
-    # Get the printable area of the printer
-    printer_width = hdc.GetDeviceCaps(8)  # HORZRES
-    printer_height = hdc.GetDeviceCaps(10)  # VERTRES
-
-    # Calculate the position to center the QR code within the label
-    x_position = (label_width_px - qr_width_px) // 2
-    y_position = (label_height_px - qr_height_px) // 2
-
-    # Convert the image to a DIB (Device Independent Bitmap) and draw it on the printer device context
-    dib = ImageWin.Dib(img)
-    dib.draw(
-        hdc.GetHandleOutput(),
-        (x_position, y_position, x_position + qr_width_px, y_position + qr_height_px),
-    )
-
-    # End the page and the print job
-    hdc.EndPage()
-    hdc.EndDoc()
-
-    # Clean up
-    hdc.DeleteDC()
-
+import win32print, win32ui
+import qrcode
+from PIL import Image, ImageDraw, ImageFont, ImageWin
 
 def print_qr_code_with_details(
     qr_filename, first_name, last_name, email, number, company
@@ -137,13 +10,15 @@ def print_qr_code_with_details(
     full_name = f"{first_name} {last_name}"
 
     # Define the desired size in millimeters and convert to pixels
-    desired_width_mm = 750  # Increased width for more space
-    desired_height_mm = 300  # Height remains the same
-    dpi = 72  # Commonly used DPI for printing
-    width_px = int(
-        desired_width_mm * dpi / 25.4
-    )  # Convert mm to inches and then to pixels
-    height_px = int(desired_height_mm * dpi / 25.4)
+    # desired_width_mm = 750
+    # desired_height_mm = 350
+    # dpi = 15
+    # width_px = int(
+    #     desired_width_mm * dpi / 25.4
+    # ) # Convert mm to inches and then to pixels
+    # height_px = int(desired_height_mm * dpi / 25.4)
+    width_px = 525
+    height_px = 375
 
     # Create a new blank image for the composite
     composite_img = Image.new("RGB", (width_px, height_px), color="white")
@@ -153,10 +28,12 @@ def print_qr_code_with_details(
     qr_img = qr_img.convert("RGB")  # Ensure the image is in RGB mode
 
     # Define sizes for the QR code and text section
-    qr_width_mm = desired_height_mm  # Define the QR code width
-    qr_height_mm = desired_height_mm  # Define the QR code height
-    qr_width_px = int(qr_width_mm * dpi / 25.4)
-    qr_height_px = int(qr_height_mm * dpi / 25.4)
+    # qr_width_mm = desired_height_mm  # Define the QR code width
+    # qr_height_mm = desired_height_mm  # Define the QR code height
+    # qr_width_px = int(qr_width_mm * dpi / 25.4)
+    # qr_height_px = int(qr_height_mm * dpi / 25.4)
+    qr_width_px = height_px
+    qr_height_px = height_px
 
     # Resize the QR code image to fit its defined size
     qr_img = qr_img.resize((qr_width_px, qr_height_px), Image.LANCZOS)
@@ -200,6 +77,14 @@ def print_qr_code_with_details(
             (details_x, details_y + i * line_spacing), line, font=font, fill="black"
         )
 
+    # Add a thin border around the entire image
+    border_thickness = 2  # Set the border thickness (in pixels)
+    draw.rectangle(
+        [border_thickness // 2, border_thickness // 2, width_px - border_thickness // 2, height_px - border_thickness // 2],
+        outline="green",
+        width=border_thickness
+    )
+
     # Save the composite image
     composite_filename = qr_filename.replace(".png", "_composite.png")
     composite_img.save(composite_filename)
@@ -236,19 +121,6 @@ def print_qr_code_with_details(
 
 
 # Function to handle keyboard input of hash and decoding
-def decode_qr():
-    hash_value = input("Enter the QR hash: ")
-    user_info = lookup_user_info(hash_value)
-
-    if user_info:
-        # Generate a new QR code with the user's details
-        qr_filename = generate_vcard_qr(*user_info)
-        print(f"Generated QR Code with user details: {qr_filename}")
-
-        # Print the QR code
-        print_qr_code_with_details(qr_filename, *user_info)
-
-
 def decode_qr_to_vcard():
     # Assume qr_data is in the format "FirstName;LastName;Email;Number;Company"
     qr_string = input("Enter the QR hash: ")
@@ -292,7 +164,8 @@ END:VCARD
         img.save(qr_filename)
         print(f"vCard QR code saved as {qr_filename}")
 
-        return qr_filename
+        print_qr_code_with_details(qr_filename,first_name, last_name, email, number, company)
+        # return qr_filename
 
     except ValueError:
         print("Error: Invalid QR data format.")
@@ -303,19 +176,12 @@ END:VCARD
 def main_menu():
     while True:
         print("QR Code Processing System")
-        print("1. Start QR Code Reader (Camera)")
-        print("2. Input QR Hash Manually")
-        print("3. Input QR Hash Manually & Print")
+        print("1. Start QR Scanner and Printer)")
         print("q. Quit")
         choice = input("Enter your choice: ").strip().lower()
 
         if choice == "1":
-            read_qr_code()
-        elif choice == "2":
             decode_qr_to_vcard()
-        elif choice == "3":
-            filename = decode_qr_to_vcard()
-            print_qr_code(filename)
         elif choice == "q":
             print("Exiting...")
             break
