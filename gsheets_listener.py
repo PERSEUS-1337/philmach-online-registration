@@ -5,8 +5,6 @@
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-import time
-import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -15,6 +13,9 @@ from email import encoders
 import qrcode
 
 from dotenv import load_dotenv
+import csv
+import logging
+import time
 import os
 
 # Load .env file
@@ -31,6 +32,7 @@ creds = Credentials.from_service_account_file(os.getenv("GSHEET_CREDS"))
 
 # Build the service
 sheets_api = build("sheets", "v4", credentials=creds)
+gmail_api = build('gmail', 'v1', credentials=creds)
 
 # Spreadsheet ID and Range
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
@@ -39,6 +41,31 @@ RANGE_NAME = os.getenv("RANGE_NAME")
 # Ensure directories exist
 os.makedirs("codes", exist_ok=True)
 os.makedirs("images", exist_ok=True)
+
+# Setup Backup Database (CSV)
+CSV_FILE_PATH = os.getenv("CSV_FILE_PATH")
+
+# Set time interval of checking gsheet
+INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS"))
+
+# Set up logging configuration
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+def save_to_csv(data, file_path):
+    with open(file_path, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerows(data)
+
+
+def load_from_csv(file_path):
+    if not os.path.exists(file_path):
+        return []  # Return an empty list if the file doesn't exist
+
+    with open(file_path, mode="r", newline="") as file:
+        reader = csv.reader(file)
+        return list(reader)
 
 
 def get_sheet_data(spreadsheet_id, range_name):
@@ -58,7 +85,7 @@ def detect_changes(previous_data, new_data):
     # Check if new rows have been added
     if len(new_data) > len(previous_data):
         changes_detected = True
-        new_entries = new_data[len(previous_data) :]
+        new_entries = new_data[len(previous_data):]
 
     return changes_detected, new_entries
 
@@ -89,16 +116,18 @@ def generate_qr_code_with_basic_info(first_name, last_name, email, number, compa
     return filename
 
 
-def send_email(to_email, qr_filename):
+def send_email(to_email, last_name, qr_filename):
     print("Attempting to send email...")
 
-    from_email = sender_email  # Your Gmail address
-    password = sender_password  # Your Gmail App Password
-    smtp_server = "smtp.gmail.com"
+    from_email = "aron.resty@jachinboaz.com.ph"  # Your Gmail address
+    password = "B7f6sxMu7a"  # Your Gmail App Password
+    smtp_server = "mail.jachinboaz.com.ph"
     smtp_port = 587  # For TLS
 
-    subject = "Philmach Registration Confirmation"
-    body = "Thank you for registering. Attached is your vCard QR code. Please present this QR code on the day of your attendance to receive your booth QR codes."
+    subject = f"PhilMach 2024 Registration Confirmed - {last_name.upper()}"
+    body = (f"Thank you for registering, Ms./Mr. {last_name}.\n\n"
+            f"Attached is your unique registration QR code.\n"
+            f"Please present this QR code on the day of your attendance to receive your booth QR codes.")
 
     msg = MIMEMultipart()
     msg["From"] = from_email
@@ -143,18 +172,14 @@ def send_email(to_email, qr_filename):
 # Main loop to periodically fetch data
 previous_data = get_sheet_data(SPREADSHEET_ID, RANGE_NAME)
 
-# Set up logging configuration
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 
-
-# Function to run the loop
 def monitor_changes():
-    previous_data = []  # Initialize previous_data
+    # Load previous data from CSV
+    previous_data = load_from_csv(CSV_FILE_PATH)
+
     try:
         while True:
-            interval = 5  # Seconds
+            interval = INTERVAL_SECONDS  # Seconds
             time.sleep(interval)
 
             # Log the time of the check
@@ -167,9 +192,7 @@ def monitor_changes():
                 logging.info(f"Changes detected: {len(new_entries)} new entries found.")
 
                 for i, entry in enumerate(new_entries):
-                    email, first_name, last_name, number, company = entry[
-                        1:6
-                    ]  # Adjust indices as per the form fields
+                    email, first_name, last_name, number, company = entry[1:6]  # Adjust indices as per the form fields
 
                     qr_filename = generate_qr_code_with_basic_info(
                         first_name, last_name, email, number, company
@@ -181,10 +204,13 @@ def monitor_changes():
                     )
 
                     # Send the email
-                    send_email(email, qr_filename)
+                    send_email(email, last_name, qr_filename)
 
                 # Update the previous data only if changes are detected
                 previous_data = new_data
+
+                # Save the updated data to CSV
+                save_to_csv(previous_data, CSV_FILE_PATH)
             else:
                 # Log when no changes are detected
                 logging.info("No changes detected.")
