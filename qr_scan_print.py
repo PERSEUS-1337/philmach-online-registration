@@ -4,21 +4,13 @@ import win32print, win32ui
 import qrcode
 from PIL import Image, ImageDraw, ImageFont, ImageWin
 
-def print_qr_code_with_details(
-    qr_filename, first_name, last_name, email, number, company
-):
+
+def print_qr_code_with_details(qr_filename, first_name, last_name):
     full_name = f"{first_name} {last_name}"
 
-    # Define the desired size in millimeters and convert to pixels
-    # desired_width_mm = 750
-    # desired_height_mm = 350
-    # dpi = 15
-    # width_px = int(
-    #     desired_width_mm * dpi / 25.4
-    # ) # Convert mm to inches and then to pixels
-    # height_px = int(desired_height_mm * dpi / 25.4)
+    # Define the desired size in pixels
     width_px = 525
-    height_px = 375
+    height_px = 365
 
     # Create a new blank image for the composite
     composite_img = Image.new("RGB", (width_px, height_px), color="white")
@@ -27,63 +19,91 @@ def print_qr_code_with_details(
     qr_img = Image.open(qr_filename)
     qr_img = qr_img.convert("RGB")  # Ensure the image is in RGB mode
 
-    # Define sizes for the QR code and text section
-    # qr_width_mm = desired_height_mm  # Define the QR code width
-    # qr_height_mm = desired_height_mm  # Define the QR code height
-    # qr_width_px = int(qr_width_mm * dpi / 25.4)
-    # qr_height_px = int(qr_height_mm * dpi / 25.4)
-    qr_width_px = height_px
-    qr_height_px = height_px
+    # Define the QR code size to be 3/4 of the total height
+    qr_height_px = int(height_px * 3 / 4)
+    qr_width_px = qr_height_px  # Keep the QR code square
 
-    # Resize the QR code image to fit its defined size
+    # Resize the QR code image
     qr_img = qr_img.resize((qr_width_px, qr_height_px), Image.LANCZOS)
 
-    # Paste the QR code image into the composite
-    composite_img.paste(qr_img, (0, 0))
+    # Calculate the position to center the QR code at the bottom
+    bottom_margin = 15
+    qr_x = (width_px - qr_width_px) // 2
+    qr_y = height_px - qr_height_px - bottom_margin
 
-    # Draw the user details on the right side
+    # Paste the QR code image into the composite
+    composite_img.paste(qr_img, (qr_x, qr_y))
+
+    # Rotate and add "Contact Info" on the left side of the QR code
+    padding = 10
+    contact_info_text = "Contact Information"
+    side_font_size = qr_height_px // 12  # Adjust font size for side text
+    side_font = ImageFont.truetype("cour.ttf", side_font_size)
+    contact_info_img = Image.new("RGB", side_font.getbbox(contact_info_text)[2:], color="white")
+    contact_info_draw = ImageDraw.Draw(contact_info_img)
+    contact_info_draw.text((0, 0), contact_info_text, font=side_font, fill="black")
+    contact_info_img = contact_info_img.rotate(90, expand=True)
+    composite_img.paste(contact_info_img,
+                        (qr_x - contact_info_img.width - padding, qr_y + (qr_height_px - contact_info_img.height) // 2))
+
+    # Rotate and add "Scan w/ Camera" on the right side of the QR code
+    scan_text = "Scan w/ Camera"
+    scan_img = Image.new("RGB", side_font.getbbox(scan_text)[2:], color="white")
+    scan_draw = ImageDraw.Draw(scan_img)
+    scan_draw.text((0, 0), scan_text, font=side_font, fill="black")
+    scan_img = scan_img.rotate(270, expand=True)
+    composite_img.paste(scan_img, (qr_x + qr_width_px + padding, qr_y + (qr_height_px - scan_img.height) // 2))
+
+    # Draw the user's full name at the top
     draw = ImageDraw.Draw(composite_img)
 
-    # Define font size
-    font_size = (
-        qr_height_px // 13
-    )  # Make the font size proportional to the QR code height
-    font = ImageFont.truetype(
-        "arial.ttf", font_size
-    )  # You can specify a different font if needed
+    # Define font size for the full name
+    font_size = qr_height_px // 9  # Make the font size proportional to the QR code height
+    font = ImageFont.truetype("arial.ttf", font_size)
 
-    # Define text positions and content
-    details_x = qr_width_px + 30  # 30 pixels padding from QR code
-    details_y = 10
-    line_spacing = font_size * 1.5  # Adjust spacing based on font size
+    # Calculate the position for the full name (centered at the top)
+    text_width, text_height = font.getbbox(full_name)[2:]
+    text_x = (width_px - text_width) // 2
+    text_y = (height_px // 4 - text_height) // 2  # Centered in the top 1/4 height
 
-    # Prepare text content
-    text_lines = [
-        f"Full Name: {full_name}",
-        f"Email: {email}",
-        f"Number: {number}",
-        f"Company: {company}",
-    ]
+    # Add the full name to the image
+    draw.text((text_x, text_y), full_name, font=font, fill="black")
 
-    # Calculate the total height required for the text block
-    total_text_height = len(text_lines) * line_spacing
+    # Add "PHILMACH 2024 PHILMACH 2024" around the border
+    border_text = ("12th PHILMACH ● 12th PHILMACH ● 12th PHILMACH ● 12th PHILMACH ● 12th PHILMACH ● 12th PHILMACH ● "
+                   "12th PHILMACH ●")
+    small_font_size = qr_height_px // 25  # Very small font size for the border text
+    small_font = ImageFont.truetype("arial.ttf", small_font_size)
 
-    # Adjust text position to center vertically
-    details_y = (qr_height_px - total_text_height) // 2
+    # Top border
+    draw.text((0, 0), border_text, font=small_font, fill="black")
 
-    # Add text to the image
-    for i, line in enumerate(text_lines):
-        draw.text(
-            (details_x, details_y + i * line_spacing), line, font=font, fill="black"
-        )
+    # Bottom border
+    bottom_text_width, _ = small_font.getbbox(border_text)[2:]
+    draw.text(((width_px - bottom_text_width) // 2, height_px - small_font_size), border_text, font=small_font,
+              fill="black")
+
+    # Left border (rotated 90 degrees)
+    left_text_img = Image.new("RGB", small_font.getbbox(border_text)[2:], color="white")
+    left_text_draw = ImageDraw.Draw(left_text_img)
+    left_text_draw.text((0, 0), border_text, font=small_font, fill="black")
+    left_text_img = left_text_img.rotate(90, expand=True)
+    composite_img.paste(left_text_img, (0, (height_px - left_text_img.height) // 2))
+
+    # Right border (rotated 270 degrees)
+    right_text_img = Image.new("RGB", small_font.getbbox(border_text)[2:], color="white")
+    right_text_draw = ImageDraw.Draw(right_text_img)
+    right_text_draw.text((0, 0), border_text, font=small_font, fill="black")
+    right_text_img = right_text_img.rotate(270, expand=True)
+    composite_img.paste(right_text_img, (width_px - right_text_img.width, (height_px - right_text_img.height) // 2))
 
     # Add a thin border around the entire image
-    border_thickness = 2  # Set the border thickness (in pixels)
-    draw.rectangle(
-        [border_thickness // 2, border_thickness // 2, width_px - border_thickness // 2, height_px - border_thickness // 2],
-        outline="green",
-        width=border_thickness
-    )
+    # border_thickness = 2  # Set the border thickness (in pixels)
+    # draw.rectangle(
+    #     [border_thickness // 2, border_thickness // 2, width_px - border_thickness // 2, height_px - border_thickness // 2],
+    #     outline="green",
+    #     width=border_thickness
+    # )
 
     # Save the composite image
     composite_filename = qr_filename.replace(".png", "_composite.png")
@@ -146,8 +166,9 @@ END:VCARD
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=10,
+            box_size=5,
             border=1,
+            mask_pattern=3
         )
         qr.add_data(vcard_data)
         qr.make(fit=True)
@@ -164,7 +185,7 @@ END:VCARD
         img.save(qr_filename)
         print(f"vCard QR code saved as {qr_filename}")
 
-        print_qr_code_with_details(qr_filename,first_name, last_name, email, number, company)
+        print_qr_code_with_details(qr_filename, first_name, last_name)
         # return qr_filename
 
     except ValueError:

@@ -37,12 +37,12 @@ python-dotenv
 
 To install the necessary Python packages, use the following command:
 
-#### For gsheets_listener (deployed on DigitalOcean Droplets)
+#### For  qr_scan_print (deployed locally)
 ```bash
-pip install Pillow qrcode pywin32 python-dotenv textwrap
+pip install Pillow qrcode pywin32 python-dotenv
 ```
 
-#### For qr_scan_print (deployed locally)
+#### For gsheets_listener (deployed on DigitalOcean Droplets)
 ```bash
 pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client Pillow pyzbar qrcode opencv-python-headless pywin32 python-dotenv
 ```
