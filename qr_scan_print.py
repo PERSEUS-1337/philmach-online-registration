@@ -1,12 +1,13 @@
+import logging
 import os
 import time
 
-import win32print, win32ui
 import qrcode
-import logging
+import win32print
+import win32ui
 from PIL import Image, ImageDraw, ImageFont, ImageWin
 
-from helpers import generate_hash, verify_hash, clean_file
+from helpers import verify_hash, clean_file
 
 # Set up logging configuration
 logging.basicConfig(
@@ -15,155 +16,124 @@ logging.basicConfig(
 
 
 def print_qr_code_with_details(qr_filename, first_name, last_name):
-    logging.info(f"Attempting to print vCard QR Code of {last_name}.")
+    logging.info(f"Attempting to print vCard QR Code for {first_name} {last_name}.")
+
     full_name = f"{first_name} {last_name}"
+    width_px, height_px = 525, 365  # Define the image size in pixels
 
-    # Define the desired size in pixels
-    width_px = 525
-    height_px = 365
+    try:
+        # Create a new blank image for the composite
+        composite_img = Image.new("RGB", (width_px, height_px), color="white")
+        qr_img = Image.open(qr_filename).convert("RGB")  # Load and ensure QR image is in RGB mode
 
-    # Create a new blank image for the composite
-    composite_img = Image.new("RGB", (width_px, height_px), color="white")
+        qr_height_px = int(height_px * 3 / 4)
+        qr_width_px = qr_height_px  # Keep the QR code square
+        qr_img = qr_img.resize((qr_width_px, qr_height_px), Image.LANCZOS)
 
-    # Load the QR code image
-    qr_img = Image.open(qr_filename)
-    qr_img = qr_img.convert("RGB")  # Ensure the image is in RGB mode
+        qr_x = (width_px - qr_width_px) // 2
+        qr_y = height_px - qr_height_px - 15
 
-    # Define the QR code size to be 3/4 of the total height
-    qr_height_px = int(height_px * 3 / 4)
-    qr_width_px = qr_height_px  # Keep the QR code square
+        composite_img.paste(qr_img, (qr_x, qr_y))
 
-    # Resize the QR code image
-    qr_img = qr_img.resize((qr_width_px, qr_height_px), Image.LANCZOS)
+        # Add "Contact Info" and "Scan w/ Camera" text to the composite image
+        side_font_size = qr_height_px // 12
+        side_font = ImageFont.truetype("cour.ttf", side_font_size)
 
-    # Calculate the position to center the QR code at the bottom
-    bottom_margin = 15
-    qr_x = (width_px - qr_width_px) // 2
-    qr_y = height_px - qr_height_px - bottom_margin
+        contact_info_img = Image.new("RGB", side_font.getbbox("Contact Information")[2:], color="white")
+        contact_info_draw = ImageDraw.Draw(contact_info_img)
+        contact_info_draw.text((0, 0), "Contact Information", font=side_font, fill="black")
+        contact_info_img = contact_info_img.rotate(90, expand=True)
+        composite_img.paste(contact_info_img,
+                            (qr_x - contact_info_img.width - 10, qr_y + (qr_height_px - contact_info_img.height) // 2))
 
-    # Paste the QR code image into the composite
-    composite_img.paste(qr_img, (qr_x, qr_y))
+        scan_img = Image.new("RGB", side_font.getbbox("Scan w/ Camera")[2:], color="white")
+        scan_draw = ImageDraw.Draw(scan_img)
+        scan_draw.text((0, 0), "Scan w/ Camera", font=side_font, fill="black")
+        scan_img = scan_img.rotate(270, expand=True)
+        composite_img.paste(scan_img, (qr_x + qr_width_px + 10, qr_y + (qr_height_px - scan_img.height) // 2))
 
-    # Rotate and add "Contact Info" on the left side of the QR code
-    padding = 10
-    contact_info_text = "Contact Information"
-    side_font_size = qr_height_px // 12  # Adjust font size for side text
-    side_font = ImageFont.truetype("cour.ttf", side_font_size)
-    contact_info_img = Image.new("RGB", side_font.getbbox(contact_info_text)[2:], color="white")
-    contact_info_draw = ImageDraw.Draw(contact_info_img)
-    contact_info_draw.text((0, 0), contact_info_text, font=side_font, fill="black")
-    contact_info_img = contact_info_img.rotate(90, expand=True)
-    composite_img.paste(contact_info_img,
-                        (qr_x - contact_info_img.width - padding, qr_y + (qr_height_px - contact_info_img.height) // 2))
+        # Draw user's full name and border text
+        draw = ImageDraw.Draw(composite_img)
+        font_size = qr_height_px // 9
+        font = ImageFont.truetype("arial.ttf", font_size)
 
-    # Rotate and add "Scan w/ Camera" on the right side of the QR code
-    scan_text = "Scan w/ Camera"
-    scan_img = Image.new("RGB", side_font.getbbox(scan_text)[2:], color="white")
-    scan_draw = ImageDraw.Draw(scan_img)
-    scan_draw.text((0, 0), scan_text, font=side_font, fill="black")
-    scan_img = scan_img.rotate(270, expand=True)
-    composite_img.paste(scan_img, (qr_x + qr_width_px + padding, qr_y + (qr_height_px - scan_img.height) // 2))
+        text_width, text_height = font.getbbox(full_name)[2:]
+        text_x = (width_px - text_width) // 2
+        text_y = (height_px // 4 - text_height) // 2
+        draw.text((text_x, text_y), full_name, font=font, fill="black")
 
-    # Draw the user's full name at the top
-    draw = ImageDraw.Draw(composite_img)
+        border_text = ("12th PHILMACH ● " * 7).strip()  # Repeat the border text
+        small_font_size = qr_height_px // 25
+        small_font = ImageFont.truetype("arial.ttf", small_font_size)
 
-    # Define font size for the full name
-    font_size = qr_height_px // 9  # Make the font size proportional to the QR code height
-    font = ImageFont.truetype("arial.ttf", font_size)
+        # Add border text to all sides
+        draw.text((0, 0), border_text, font=small_font, fill="black")
+        bottom_text_width, _ = small_font.getbbox(border_text)[2:]
+        draw.text(((width_px - bottom_text_width) // 2, height_px - small_font_size), border_text, font=small_font,
+                  fill="black")
 
-    # Calculate the position for the full name (centered at the top)
-    text_width, text_height = font.getbbox(full_name)[2:]
-    text_x = (width_px - text_width) // 2
-    text_y = (height_px // 4 - text_height) // 2  # Centered in the top 1/4 height
+        left_text_img = Image.new("RGB", small_font.getbbox(border_text)[2:], color="white")
+        left_text_draw = ImageDraw.Draw(left_text_img)
+        left_text_draw.text((0, 0), border_text, font=small_font, fill="black")
+        left_text_img = left_text_img.rotate(90, expand=True)
+        composite_img.paste(left_text_img, (0, (height_px - left_text_img.height) // 2))
 
-    # Add the full name to the image
-    draw.text((text_x, text_y), full_name, font=font, fill="black")
+        right_text_img = Image.new("RGB", small_font.getbbox(border_text)[2:], color="white")
+        right_text_draw = ImageDraw.Draw(right_text_img)
+        right_text_draw.text((0, 0), border_text, font=small_font, fill="black")
+        right_text_img = right_text_img.rotate(270, expand=True)
+        composite_img.paste(right_text_img, (width_px - right_text_img.width, (height_px - right_text_img.height) // 2))
 
-    # Add "PHILMACH 2024 PHILMACH 2024" around the border
-    border_text = ("12th PHILMACH ● 12th PHILMACH ● 12th PHILMACH ● 12th PHILMACH ● 12th PHILMACH ● 12th PHILMACH ● "
-                   "12th PHILMACH ●")
-    small_font_size = qr_height_px // 25  # Very small font size for the border text
-    small_font = ImageFont.truetype("arial.ttf", small_font_size)
+        # Save the composite image
+        composite_filename = qr_filename.replace(".png", "_composite.png")
+        composite_img.save(composite_filename)
+        # logging.info(f"Composite image saved as {composite_filename}")
 
-    # Top border
-    draw.text((0, 0), border_text, font=small_font, fill="black")
+        # Start the print job
+        printer_name = win32print.GetDefaultPrinter()
+        # logging.info(f"Printing to {printer_name}.")
 
-    # Bottom border
-    bottom_text_width, _ = small_font.getbbox(border_text)[2:]
-    draw.text(((width_px - bottom_text_width) // 2, height_px - small_font_size), border_text, font=small_font,
-              fill="black")
+        hdc = win32ui.CreateDC()
+        hdc.CreatePrinterDC(printer_name)
+        hdc.StartDoc(composite_filename)
+        hdc.StartPage()
 
-    # Left border (rotated 90 degrees)
-    left_text_img = Image.new("RGB", small_font.getbbox(border_text)[2:], color="white")
-    left_text_draw = ImageDraw.Draw(left_text_img)
-    left_text_draw.text((0, 0), border_text, font=small_font, fill="black")
-    left_text_img = left_text_img.rotate(90, expand=True)
-    composite_img.paste(left_text_img, (0, (height_px - left_text_img.height) // 2))
+        printer_width = hdc.GetDeviceCaps(8)
+        printer_height = hdc.GetDeviceCaps(10)
 
-    # Right border (rotated 270 degrees)
-    right_text_img = Image.new("RGB", small_font.getbbox(border_text)[2:], color="white")
-    right_text_draw = ImageDraw.Draw(right_text_img)
-    right_text_draw.text((0, 0), border_text, font=small_font, fill="black")
-    right_text_img = right_text_img.rotate(270, expand=True)
-    composite_img.paste(right_text_img, (width_px - right_text_img.width, (height_px - right_text_img.height) // 2))
+        x_position = (printer_width - width_px) // 2
+        y_position = (printer_height - height_px) // 2
 
-    # Save the composite image
-    composite_filename = qr_filename.replace(".png", "_composite.png")
-    composite_img.save(composite_filename)
-    print(f"Composite image saved as {composite_filename}")
+        dib = ImageWin.Dib(composite_img)
+        dib.draw(hdc.GetHandleOutput(), (x_position, y_position, x_position + width_px, y_position + height_px))
 
-    # Start the print job
-    printer_name = win32print.GetDefaultPrinter()
-    hdc = win32ui.CreateDC()
-    hdc.CreatePrinterDC(printer_name)
-    hdc.StartDoc(composite_filename)
-    hdc.StartPage()
+        hdc.EndPage()
+        hdc.EndDoc()
+        hdc.DeleteDC()
 
-    # Get the printable area of the printer
-    printer_width = hdc.GetDeviceCaps(8)  # HORZRES
-    printer_height = hdc.GetDeviceCaps(10)  # VERTRES
-
-    # Determine the position where the image should be printed
-    x_position = (printer_width - width_px) // 2
-    y_position = (printer_height - height_px) // 2
-
-    # Convert the image to a DIB (Device Independent Bitmap) and draw it on the printer device context
-    dib = ImageWin.Dib(composite_img)
-    dib.draw(
-        hdc.GetHandleOutput(),
-        (x_position, y_position, x_position + width_px, y_position + height_px),
-    )
-
-    # End the page and the print job
-    hdc.EndPage()
-    hdc.EndDoc()
-
-    # Clean up
-    hdc.DeleteDC()
-    clean_file(composite_filename)
+        logging.info(f"Print job completed for {composite_filename}.")
+        clean_file(composite_filename)
+    except Exception as e:
+        logging.error(f"Error occurred while printing QR code: {e}")
 
 
 def decode_qr_to_vcard():
-    # Assume qr_data is in the format "Hash;FirstName;LastName;Email;Number;Company;Hash"
     qr_string = input("Enter the QR hash: ")
-    try:
-        # Split the QR string into components
-        components = qr_string.split(";")
 
-        if len(components) != 6:  # Ensure there are 7 components: hash + user info + hash
+    try:
+        components = qr_string.split(";")
+        if len(components) != 6:
             raise ValueError("Invalid QR data format.")
 
-        # Extract the hash and user info
         user_hash = components[0]
         first_name, last_name, email, number, company = components[1:6]
+        logging.info(f"Decoding QR code with hash: {user_hash}")
 
-        # Verify that the hash matches the generated hash from the user info
         user_info = f"{first_name};{last_name};{email};{number};{company}"
 
         if not verify_hash(user_info, user_hash):
             raise ValueError("Hash mismatch! QR code does not match the expected hash.")
 
-        # Generate the vCard data (no indentation)
         vcard_data = f"""
 BEGIN:VCARD
 VERSION:3.0
@@ -174,10 +144,8 @@ ORG:{company}
 END:VCARD
         """.strip()
 
-        print("Generated vCard from QR Data:")
-        print(vcard_data)
+        # logging.info(f"Generated vCard for {last_name}.")
 
-        # Generate a QR code containing the vCard data
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_M,
@@ -188,25 +156,17 @@ END:VCARD
         qr.make(fit=True)
 
         img = qr.make_image(fill="black", back_color="white")
-
-        # Ensure the "vcard_qr_codes" directory exists
         os.makedirs("vcard_qr_codes", exist_ok=True)
-
-        # Save the QR code as a PNG file
-        qr_filename = os.path.join(
-            "vcard_qr_codes", f"{first_name}_{last_name}_vcard_qr.png"
-        )
+        qr_filename = os.path.join("vcard_qr_codes", f"{first_name}_{last_name}_vcard_qr.png")
         img.save(qr_filename)
-        print(f"vCard QR code saved as {qr_filename}")
+        # logging.info(f"vCard QR code saved as {qr_filename}")
 
         print_qr_code_with_details(qr_filename, first_name, last_name)
         clean_file(qr_filename)
     except ValueError as e:
-        print(f"Error: {e}")
-        return None
+        logging.error(f"Error: {e}")
 
 
-# Main menu to choose between camera or keyboard input
 def main_menu():
     while True:
         print("QR Code Processing System")
@@ -215,16 +175,23 @@ def main_menu():
         choice = input("Enter your choice: ").strip().lower()
 
         if choice == "1":
-            decode_qr_to_vcard()
-            logging.info("Successfully scanned and printed. Please wait 5 seconds before scanning again.")
-            time.sleep(5)
+            scanning = True
+            while scanning:
+                try:
+                    decode_qr_to_vcard()
+                except KeyboardInterrupt:
+                    print("Scanning stopped.")
+                    logging.info("User interrupted the scanning process.")
+                    scanning = False
+
         elif choice == "q":
             print("Exiting...")
+            logging.info("Exiting the application.")
             break
         else:
             print("Invalid choice. Please try again.")
+            logging.warning("Invalid menu choice.")
 
 
-# Start the main menu
 if __name__ == "__main__":
     main_menu()

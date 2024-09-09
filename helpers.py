@@ -24,8 +24,8 @@ def generate_hash(user_info):
 def verify_hash(user_info, expected_hash):
     combined = user_info + HASH_SALT
     generated_hash = hashlib.sha256(combined.encode()).hexdigest()[:32]
-    print(f"Generated Hash: {generated_hash}")
-    print(f"Expected Hash: {expected_hash}")
+    # print(f"Generated Hash: {generated_hash}")
+    # print(f"Expected Hash: {expected_hash}")
     return generated_hash == expected_hash
 
 

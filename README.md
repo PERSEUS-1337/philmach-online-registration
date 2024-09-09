@@ -37,7 +37,7 @@ python-dotenv
 
 To install the necessary Python packages, use the following command:
 
-#### For  qr_scan_print (deployed locally)
+#### For qr_scan_print (deployed locally)
 ```bash
 pip install Pillow qrcode pywin32 python-dotenv
 ```
