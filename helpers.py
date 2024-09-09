@@ -1,5 +1,5 @@
 # Helper function to generate a consistent hash based on user info
-import hashlib
+import base64
 import logging
 import os
 from dotenv import load_dotenv
@@ -16,17 +16,18 @@ HASH_SALT = os.getenv('HASH_SALT')
 
 
 def generate_hash(user_info):
-    # Combine the user info with the predefined salt
-    combined = user_info + HASH_SALT
-    return hashlib.sha256(combined.encode()).hexdigest()[:32]  # Shortened hash for brevity
+    # Encode the user info to Base64
+    encoded_info = base64.b32encode(user_info.encode()).decode()
+    return encoded_info
 
 
-def verify_hash(user_info, expected_hash):
-    combined = user_info + HASH_SALT
-    generated_hash = hashlib.sha256(combined.encode()).hexdigest()[:32]
-    # print(f"Generated Hash: {generated_hash}")
-    # print(f"Expected Hash: {expected_hash}")
-    return generated_hash == expected_hash
+def decode_hash(user_hash):
+    # Decode the Base32 encoded user info
+    decoded_info = base64.b32decode(user_hash).decode()
+
+    # Split the decoded info by ';' to return the individual components
+    split_info = decoded_info.split(';')
+    return split_info
 
 
 def clean_file(filename):

@@ -1,11 +1,12 @@
 import os
+import serial
 
 import qrcode
 import win32print
 import win32ui
 from PIL import Image, ImageDraw, ImageFont, ImageWin
 
-from helpers import verify_hash, clean_file
+from helpers import decode_hash, clean_file
 
 
 def print_qr_code(qr_filename, first_name, last_name):
@@ -112,7 +113,7 @@ def print_qr_code(qr_filename, first_name, last_name):
 
 def decode_qr_to_vcard(qr_string):
     try:
-        company, email, first_name, last_name, number = verification(qr_string)
+        first_name, last_name, email, number, company = decode_hash(qr_string)
 
         vcard_data = f"""
 BEGIN:VCARD
@@ -149,17 +150,44 @@ END:VCARD
         return False
 
 
-def verification(qr_string):
-    components = qr_string.split(";")
-    if len(components) != 6:
-        raise ValueError("Invalid QR data format.")
-    user_hash = components[0]
-    first_name, last_name, email, number, company = components[1:6]
-    print(f"Decoding QR code with hash: {user_hash}")
-    user_info = f"{first_name};{last_name};{email};{number};{company}"
-    if not verify_hash(user_info, user_hash):
-        raise ValueError("Hash mismatch! QR code does not match the expected hash.")
-    return company, email, first_name, last_name, number
+def start_usb_hid_scanner():
+    scanning = True
+    while scanning:
+        try:
+            qr_string = input("\nWaiting for QR Scan Input (enter 'q' to quit): ")
+            if qr_string.lower() == "q":
+                raise KeyboardInterrupt
+            decode_qr_to_vcard(qr_string)
+        except KeyboardInterrupt:
+            print("User interrupted the scanning process. Scanning stopped.\n\n")
+            scanning = False
+
+
+def start_usb_com_scanner():
+    scanning = True
+    try:
+        # Set up the serial connection
+        serial_port = "COM8"  # Change this to your COM port
+        baud_rate = 9600
+        ser = serial.Serial(serial_port, baud_rate, timeout=1)
+
+        print(f"Listening on {serial_port}...")
+
+        while scanning:
+            qr_string = ser.readline().decode('utf-8').strip()  # Read from COM port
+            if qr_string.lower() == "q":
+                raise KeyboardInterrupt
+            if qr_string:  # Process non-empty input
+                decode_qr_to_vcard(qr_string)
+
+    except KeyboardInterrupt:
+        print("User interrupted the scanning process. Scanning stopped.\n\n")
+        scanning = False
+    except serial.SerialException as e:
+        print(f"Serial error: {e}")
+    finally:
+        if 'ser' in locals() and ser.is_open:
+            ser.close()
 
 
 def main_menu():
@@ -174,28 +202,20 @@ def main_menu():
         ╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
         12th PhilMach QR Scan & Print System                                                          
         """)
-        print("1. Start QR Scanner and Printer")
+        print("1. Start QR Scanner and Printer (USB HID)")
+        print("2. Start QR Scanner and Printer (USB COM Device)")
         print("0. Quit")
         choice = input("Enter your choice: ").strip().lower()
 
         if choice == "1":
-            scanning = True
-            while scanning:
-                try:
-                    qr_string = input("\nWaiting for QR Scan Input (enter 'q' to quit): ")
-                    if qr_string == "q":
-                        raise KeyboardInterrupt
-                    decode_qr_to_vcard(qr_string)
-                except KeyboardInterrupt:
-                    print("User interrupted the scanning process. Scanning stopped. \n\n")
-                    scanning = False
-
-        elif choice == "q":
+            start_usb_hid_scanner()
+        elif choice == "2":
+            start_usb_com_scanner()
+        elif choice == "q" or choice == "0":
             print("Exiting the application.")
             break
         else:
             print("Invalid choice. Please try again.")
-
 
 if __name__ == "__main__":
     main_menu()

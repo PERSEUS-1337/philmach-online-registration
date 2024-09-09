@@ -31,6 +31,7 @@ qrcode
 opencv-python-headless
 pywin32
 python-dotenv
+pyserial
 ```
 
 ### Installation
@@ -39,7 +40,7 @@ To install the necessary Python packages, use the following command:
 
 #### For qr_scan_print (deployed locally)
 ```bash
-pip install Pillow qrcode pywin32 python-dotenv
+pip install Pillow qrcode pywin32 python-dotenv pyserial
 ```
 
 #### For gsheets_listener (deployed on DigitalOcean Droplets)

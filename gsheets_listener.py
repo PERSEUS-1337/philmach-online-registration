@@ -6,7 +6,7 @@ import os
 import time
 import logging
 import csv
-import hashlib
+import base64
 from dotenv import load_dotenv
 
 import qrcode
@@ -18,7 +18,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 
-from helpers import generate_hash, verify_hash, clean_file
+from helpers import generate_hash, decode_hash, clean_file
 
 # Load environment variables from .env file
 load_dotenv()
@@ -98,7 +98,7 @@ def generate_qr_code_with_user_info(first_name, last_name, email, number, compan
     user_hash = generate_hash(user_info)
 
     # Append the hash to the front of the user info
-    hashed_user_info = f"{user_hash};{user_info}"
+    # hashed_user_info = f"{user_hash};{user_info}"
 
     # Create QR code containing the hashed information
     qr = qrcode.QRCode(
@@ -107,7 +107,7 @@ def generate_qr_code_with_user_info(first_name, last_name, email, number, compan
         box_size=10,
         border=1,
     )
-    qr.add_data(hashed_user_info)
+    qr.add_data(user_hash)
     qr.make(fit=True)
 
     img = qr.make_image(fill="black", back_color="white")
