@@ -1,6 +1,4 @@
-import logging
 import os
-import time
 
 import qrcode
 import win32print
@@ -9,14 +7,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageWin
 
 from helpers import verify_hash, clean_file
 
-# Set up logging configuration
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 
-
-def print_qr_code_with_details(qr_filename, first_name, last_name):
-    logging.info(f"Attempting to print vCard QR Code for {first_name} {last_name}.")
+def print_qr_code(qr_filename, first_name, last_name):
+    print(f"Attempting to print vCard QR Code for {first_name} {last_name}.")
 
     full_name = f"{first_name} {last_name}"
     width_px, height_px = 525, 365  # Define the image size in pixels
@@ -87,11 +80,11 @@ def print_qr_code_with_details(qr_filename, first_name, last_name):
         # Save the composite image
         composite_filename = qr_filename.replace(".png", "_composite.png")
         composite_img.save(composite_filename)
-        # logging.info(f"Composite image saved as {composite_filename}")
+        print(f"Composite image saved as {composite_filename}")
 
         # Start the print job
         printer_name = win32print.GetDefaultPrinter()
-        # logging.info(f"Printing to {printer_name}.")
+        print(f"Printing to {printer_name}.")
 
         hdc = win32ui.CreateDC()
         hdc.CreatePrinterDC(printer_name)
@@ -111,28 +104,15 @@ def print_qr_code_with_details(qr_filename, first_name, last_name):
         hdc.EndDoc()
         hdc.DeleteDC()
 
-        logging.info(f"Print job completed for {composite_filename}.")
+        print(f"Print job completed for {composite_filename}.")
         clean_file(composite_filename)
     except Exception as e:
-        logging.error(f"Error occurred while printing QR code: {e}")
+        print(f"Error occurred while printing QR code: {e}")
 
 
-def decode_qr_to_vcard():
-    qr_string = input("Enter the QR hash: ")
-
+def decode_qr_to_vcard(qr_string):
     try:
-        components = qr_string.split(";")
-        if len(components) != 6:
-            raise ValueError("Invalid QR data format.")
-
-        user_hash = components[0]
-        first_name, last_name, email, number, company = components[1:6]
-        logging.info(f"Decoding QR code with hash: {user_hash}")
-
-        user_info = f"{first_name};{last_name};{email};{number};{company}"
-
-        if not verify_hash(user_info, user_hash):
-            raise ValueError("Hash mismatch! QR code does not match the expected hash.")
+        company, email, first_name, last_name, number = verification(qr_string)
 
         vcard_data = f"""
 BEGIN:VCARD
@@ -144,7 +124,7 @@ ORG:{company}
 END:VCARD
         """.strip()
 
-        # logging.info(f"Generated vCard for {last_name}.")
+        print(f"Generated vCard for {last_name}.")
 
         qr = qrcode.QRCode(
             version=1,
@@ -159,38 +139,62 @@ END:VCARD
         os.makedirs("vcard_qr_codes", exist_ok=True)
         qr_filename = os.path.join("vcard_qr_codes", f"{first_name}_{last_name}_vcard_qr.png")
         img.save(qr_filename)
-        # logging.info(f"vCard QR code saved as {qr_filename}")
+        print(f"vCard QR code saved as {qr_filename}")
 
-        print_qr_code_with_details(qr_filename, first_name, last_name)
+        print_qr_code(qr_filename, first_name, last_name)
         clean_file(qr_filename)
+        return True
     except ValueError as e:
-        logging.error(f"Error: {e}")
+        print(f"Error: {e}")
+        return False
+
+
+def verification(qr_string):
+    components = qr_string.split(";")
+    if len(components) != 6:
+        raise ValueError("Invalid QR data format.")
+    user_hash = components[0]
+    first_name, last_name, email, number, company = components[1:6]
+    print(f"Decoding QR code with hash: {user_hash}")
+    user_info = f"{first_name};{last_name};{email};{number};{company}"
+    if not verify_hash(user_info, user_hash):
+        raise ValueError("Hash mismatch! QR code does not match the expected hash.")
+    return company, email, first_name, last_name, number
 
 
 def main_menu():
     while True:
-        print("QR Code Processing System")
+        print("""
+        \n
+        ██████╗ ██╗  ██╗██╗██╗     ███╗   ███╗ █████╗  ██████╗██╗  ██╗
+        ██╔══██╗██║  ██║██║██║     ████╗ ████║██╔══██╗██╔════╝██║  ██║
+        ██████╔╝███████║██║██║     ██╔████╔██║███████║██║     ███████║
+        ██╔═══╝ ██╔══██║██║██║     ██║╚██╔╝██║██╔══██║██║     ██╔══██║
+        ██║     ██║  ██║██║███████╗██║ ╚═╝ ██║██║  ██║╚██████╗██║  ██║
+        ╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
+        12th PhilMach QR Scan & Print System                                                          
+        """)
         print("1. Start QR Scanner and Printer")
-        print("q. Quit")
+        print("0. Quit")
         choice = input("Enter your choice: ").strip().lower()
 
         if choice == "1":
             scanning = True
             while scanning:
                 try:
-                    decode_qr_to_vcard()
+                    qr_string = input("\nWaiting for QR Scan Input (enter 'q' to quit): ")
+                    if qr_string == "q":
+                        raise KeyboardInterrupt
+                    decode_qr_to_vcard(qr_string)
                 except KeyboardInterrupt:
-                    print("Scanning stopped.")
-                    logging.info("User interrupted the scanning process.")
+                    print("User interrupted the scanning process. Scanning stopped. \n\n")
                     scanning = False
 
         elif choice == "q":
-            print("Exiting...")
-            logging.info("Exiting the application.")
+            print("Exiting the application.")
             break
         else:
             print("Invalid choice. Please try again.")
-            logging.warning("Invalid menu choice.")
 
 
 if __name__ == "__main__":
