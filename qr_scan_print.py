@@ -1,11 +1,21 @@
 import os
+import time
 
 import win32print, win32ui
 import qrcode
+import logging
 from PIL import Image, ImageDraw, ImageFont, ImageWin
+
+from helpers import generate_hash, verify_hash, clean_file
+
+# Set up logging configuration
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 
 def print_qr_code_with_details(qr_filename, first_name, last_name):
+    logging.info(f"Attempting to print vCard QR Code of {last_name}.")
     full_name = f"{first_name} {last_name}"
 
     # Define the desired size in pixels
@@ -97,14 +107,6 @@ def print_qr_code_with_details(qr_filename, first_name, last_name):
     right_text_img = right_text_img.rotate(270, expand=True)
     composite_img.paste(right_text_img, (width_px - right_text_img.width, (height_px - right_text_img.height) // 2))
 
-    # Add a thin border around the entire image
-    # border_thickness = 2  # Set the border thickness (in pixels)
-    # draw.rectangle(
-    #     [border_thickness // 2, border_thickness // 2, width_px - border_thickness // 2, height_px - border_thickness // 2],
-    #     outline="green",
-    #     width=border_thickness
-    # )
-
     # Save the composite image
     composite_filename = qr_filename.replace(".png", "_composite.png")
     composite_img.save(composite_filename)
@@ -138,15 +140,28 @@ def print_qr_code_with_details(qr_filename, first_name, last_name):
 
     # Clean up
     hdc.DeleteDC()
+    clean_file(composite_filename)
 
 
-# Function to handle keyboard input of hash and decoding
 def decode_qr_to_vcard():
-    # Assume qr_data is in the format "FirstName;LastName;Email;Number;Company"
+    # Assume qr_data is in the format "Hash;FirstName;LastName;Email;Number;Company;Hash"
     qr_string = input("Enter the QR hash: ")
     try:
         # Split the QR string into components
-        first_name, last_name, email, number, company = qr_string.split(";")
+        components = qr_string.split(";")
+
+        if len(components) != 6:  # Ensure there are 7 components: hash + user info + hash
+            raise ValueError("Invalid QR data format.")
+
+        # Extract the hash and user info
+        user_hash = components[0]
+        first_name, last_name, email, number, company = components[1:6]
+
+        # Verify that the hash matches the generated hash from the user info
+        user_info = f"{first_name};{last_name};{email};{number};{company}"
+
+        if not verify_hash(user_info, user_hash):
+            raise ValueError("Hash mismatch! QR code does not match the expected hash.")
 
         # Generate the vCard data (no indentation)
         vcard_data = f"""
@@ -168,7 +183,6 @@ END:VCARD
             error_correction=qrcode.constants.ERROR_CORRECT_M,
             box_size=5,
             border=1,
-            mask_pattern=3
         )
         qr.add_data(vcard_data)
         qr.make(fit=True)
@@ -186,10 +200,9 @@ END:VCARD
         print(f"vCard QR code saved as {qr_filename}")
 
         print_qr_code_with_details(qr_filename, first_name, last_name)
-        # return qr_filename
-
-    except ValueError:
-        print("Error: Invalid QR data format.")
+        clean_file(qr_filename)
+    except ValueError as e:
+        print(f"Error: {e}")
         return None
 
 
@@ -197,12 +210,14 @@ END:VCARD
 def main_menu():
     while True:
         print("QR Code Processing System")
-        print("1. Start QR Scanner and Printer)")
+        print("1. Start QR Scanner and Printer")
         print("q. Quit")
         choice = input("Enter your choice: ").strip().lower()
 
         if choice == "1":
             decode_qr_to_vcard()
+            logging.info("Successfully scanned and printed. Please wait 5 seconds before scanning again.")
+            time.sleep(5)
         elif choice == "q":
             print("Exiting...")
             break

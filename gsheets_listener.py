@@ -1,8 +1,15 @@
 # gsheets_listener.py
-# Listens from the GSheets for any updates regarding new registration entries every 5 seconds
-# Generates QR code based on the information inputted by new entries
-# Sends QR code via email to the registrants using their entered emails
+# Listens for updates in Google Sheets every 5 seconds, generates QR codes based on new entries,
+# and sends QR codes via email to registrants using their entered emails.
 
+import os
+import time
+import logging
+import csv
+import hashlib
+from dotenv import load_dotenv
+
+import qrcode
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 import smtplib
@@ -10,50 +17,42 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-import qrcode
 
-from dotenv import load_dotenv
-import csv
-import logging
-import time
-import os
+from helpers import generate_hash, verify_hash, clean_file
 
-# Load .env file
+# Load environment variables from .env file
 load_dotenv()
 
 # Access environment variables
-secret_key = os.getenv("SECRET_KEY")
-database_url = os.getenv("DATABASE_URL")
-sender_email = os.getenv("SENDER_EMAIL_v3")
-sender_password = os.getenv("SENDER_PASSWORD_v3")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL_v3")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD_v3")
+SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+RANGE_NAME = os.getenv("RANGE_NAME")
+CSV_FILE_PATH = os.getenv("CSV_FILE_PATH")
+INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS"))
 
-# Load the service account credentials
+# Load the service account credentials for Google Sheets and Gmail
 creds = Credentials.from_service_account_file(os.getenv("GSHEET_CREDS"))
-
-# Build the service
 sheets_api = build("sheets", "v4", credentials=creds)
 gmail_api = build('gmail', 'v1', credentials=creds)
 
-# Spreadsheet ID and Range
-SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
-RANGE_NAME = os.getenv("RANGE_NAME")
-
-# Ensure directories exist
+# Ensure necessary directories exist
 os.makedirs("codes", exist_ok=True)
-os.makedirs("images", exist_ok=True)
 
-# Setup Backup Database (CSV)
-CSV_FILE_PATH = os.getenv("CSV_FILE_PATH")
-
-# Set time interval of checking gsheet
-INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS"))
+# Set up backup database (CSV)
+if not os.path.exists(CSV_FILE_PATH):
+    with open(CSV_FILE_PATH, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["First Name", "Last Name", "Email", "Number", "Company"])
 
 # Set up logging configuration
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 
+# Code execution starts below
 def save_to_csv(data, file_path):
     with open(file_path, mode="w", newline="") as file:
         writer = csv.writer(file)
@@ -91,18 +90,24 @@ def detect_changes(previous_data, new_data):
     return changes_detected, new_entries
 
 
-def generate_qr_code_with_basic_info(first_name, last_name, email, number, company):
+def generate_qr_code_with_user_info(first_name, last_name, email, number, company):
     # Create a string with basic information, e.g., "FirstName;LastName;Email;Number;Company"
-    basic_info = f"{first_name};{last_name};{email};{number};{company}"
+    user_info = f"{first_name};{last_name};{email};{number};{company}"
 
-    # Create QR code containing the basic information
+    # Generate a consistent hash based on user info
+    user_hash = generate_hash(user_info)
+
+    # Append the hash to the front of the user info
+    hashed_user_info = f"{user_hash};{user_info}"
+
+    # Create QR code containing the hashed information
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
         box_size=10,
         border=1,
     )
-    qr.add_data(basic_info)
+    qr.add_data(hashed_user_info)
     qr.make(fit=True)
 
     img = qr.make_image(fill="black", back_color="white")
@@ -113,15 +118,15 @@ def generate_qr_code_with_basic_info(first_name, last_name, email, number, compa
     # Save the QR code in the "codes" directory
     filename = os.path.join("codes", f"{first_name}_{last_name}_qr.png")
     img.save(filename)
-    print(f"QR code generated and saved as {filename}")
+    logging.info(f"QR code generated and saved as {filename}")
     return filename
 
 
 def send_email(to_email, last_name, qr_filename):
-    print("Attempting to send email...")
+    logging.info(f"Attempting to send email to {to_email}.")
 
-    from_email = sender_email  # Your Gmail address
-    password = sender_password  # Your Gmail App Password
+    from_email = SENDER_EMAIL  # Your Gmail address
+    password = SENDER_PASSWORD  # Your Gmail App Password
     smtp_server = "smtp.gmail.com"
     smtp_port = 587  # For TLS
 
@@ -155,19 +160,19 @@ def send_email(to_email, last_name, qr_filename):
         server.login(from_email, password)
         server.sendmail(from_email, to_email, msg.as_string())
         server.quit()
-        print(f"Email sent to {to_email}")
+        logging.info(f"Email sent to {to_email}.")
+
     except smtplib.SMTPAuthenticationError as e:
-        print(
-            "SMTP Authentication Error: Could not log in to the SMTP server. Check your username and password."
-        )
+        logging.error(f"SMTP Authentication Error: Could not log in to the SMTP server. "
+                      f"Check your username ({from_email}) and password.")
     except smtplib.SMTPRecipientsRefused as e:
-        print(
+        logging.error(
             f"SMTP Recipients Refused: The recipient {to_email} was rejected by the server."
         )
     except smtplib.SMTPException as e:
-        print(f"SMTP Error: {e}")
+        logging.error(f"SMTP Error: {e}")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logging.error(f"An error occurred: {e}")
 
 
 # Main loop to periodically fetch data
@@ -195,7 +200,7 @@ def monitor_changes():
                 for i, entry in enumerate(new_entries):
                     email, first_name, last_name, number, company = entry[1:6]  # Adjust indices as per the form fields
 
-                    qr_filename = generate_qr_code_with_basic_info(
+                    qr_filename = generate_qr_code_with_user_info(
                         first_name, last_name, email, number, company
                     )
 
@@ -207,6 +212,9 @@ def monitor_changes():
                     # Send the email
                     send_email(email, last_name, qr_filename)
 
+                    # Delete the generated files
+                    clean_file(qr_filename)
+
                 # Update the previous data only if changes are detected
                 previous_data = new_data
 
@@ -217,9 +225,9 @@ def monitor_changes():
                 logging.info("No changes detected.")
 
     except KeyboardInterrupt:
-        logging.info("Interrupted by user. Shutting down gracefully.")
+        logging.critical("Interrupted by user. Shutting down gracefully.")
     except Exception as e:
-        logging.error(f"An error occurred: {e}. Shutting down gracefully.")
+        logging.critical(f"An error occurred: {e}. Shutting down gracefully.")
 
 
 if __name__ == "__main__":
