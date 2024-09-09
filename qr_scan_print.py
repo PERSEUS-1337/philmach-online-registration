@@ -172,7 +172,6 @@ def start_usb_com_scanner():
         ser = serial.Serial(serial_port, baud_rate, timeout=1)
 
         print(f"Listening on {serial_port}...")
-
         while scanning:
             qr_string = ser.readline().decode('utf-8').strip()  # Read from COM port
             if qr_string.lower() == "q":

@@ -204,11 +204,6 @@ def monitor_changes():
                         first_name, last_name, email, number, company
                     )
 
-                    # Log that an email is being sent
-                    logging.info(
-                        f"Sending email to {email} with attached QR code: {qr_filename}"
-                    )
-
                     # Send the email
                     send_email(email, last_name, qr_filename)
 
