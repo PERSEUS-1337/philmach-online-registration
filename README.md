@@ -26,9 +26,7 @@ google-auth-oauthlib
 google-auth-httplib2
 google-api-python-client
 Pillow
-pyzbar
 qrcode
-opencv-python-headless
 pywin32
 python-dotenv
 pyserial
@@ -45,7 +43,7 @@ pip install Pillow qrcode pywin32 python-dotenv pyserial
 
 #### For gsheets_listener (deployed on DigitalOcean Droplets)
 ```bash
-pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client Pillow pyzbar qrcode opencv-python-headless pywin32 python-dotenv
+pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client Pillow qrcode python-dotenv
 ```
 ### Steps to Deploy
 
@@ -67,7 +65,7 @@ pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-pyt
 
 1. **Install Prerequisites:**
    - Ensure that all necessary Python packages are installed.
-   - Setup the QR Scanner as a USB HID to act as a keyboard, outputting the decoded string from the QR code.
+   - Set up the QR Scanner as a USB COM to act as a keyboard, and modify 
 
 2. **Run the `qr_scanner_printer.py`:**
    - This program will handle the on-site QR scanning and printing.

@@ -5,8 +5,14 @@ import qrcode
 import win32print
 import win32ui
 from PIL import Image, ImageDraw, ImageFont, ImageWin
+from dotenv import load_dotenv
 
 from helpers import decode_hash, clean_file
+
+# Load Environment Variables
+load_dotenv()
+MODE = os.getenv("MODE")
+SERIAL_PORT = os.getenv("COM_PORT")
 
 
 def print_qr_code(qr_filename, first_name, last_name):
@@ -18,7 +24,9 @@ def print_qr_code(qr_filename, first_name, last_name):
     try:
         # Create a new blank image for the composite
         composite_img = Image.new("RGB", (width_px, height_px), color="white")
-        qr_img = Image.open(qr_filename).convert("RGB")  # Load and ensure QR image is in RGB mode
+        qr_img = Image.open(qr_filename).convert(
+            "RGB"
+        )  # Load and ensure QR image is in RGB mode
 
         qr_height_px = int(height_px * 3 / 4)
         qr_width_px = qr_height_px  # Keep the QR code square
@@ -33,18 +41,32 @@ def print_qr_code(qr_filename, first_name, last_name):
         side_font_size = qr_height_px // 12
         side_font = ImageFont.truetype("cour.ttf", side_font_size)
 
-        contact_info_img = Image.new("RGB", side_font.getbbox("Contact Information")[2:], color="white")
+        contact_info_img = Image.new(
+            "RGB", side_font.getbbox("Contact Information")[2:], color="white"
+        )
         contact_info_draw = ImageDraw.Draw(contact_info_img)
-        contact_info_draw.text((0, 0), "Contact Information", font=side_font, fill="black")
+        contact_info_draw.text(
+            (0, 0), "Contact Information", font=side_font, fill="black"
+        )
         contact_info_img = contact_info_img.rotate(90, expand=True)
-        composite_img.paste(contact_info_img,
-                            (qr_x - contact_info_img.width - 10, qr_y + (qr_height_px - contact_info_img.height) // 2))
+        composite_img.paste(
+            contact_info_img,
+            (
+                qr_x - contact_info_img.width - 10,
+                qr_y + (qr_height_px - contact_info_img.height) // 2,
+            ),
+        )
 
-        scan_img = Image.new("RGB", side_font.getbbox("Scan w/ Camera")[2:], color="white")
+        scan_img = Image.new(
+            "RGB", side_font.getbbox("Scan w/ Camera")[2:], color="white"
+        )
         scan_draw = ImageDraw.Draw(scan_img)
         scan_draw.text((0, 0), "Scan w/ Camera", font=side_font, fill="black")
         scan_img = scan_img.rotate(270, expand=True)
-        composite_img.paste(scan_img, (qr_x + qr_width_px + 10, qr_y + (qr_height_px - scan_img.height) // 2))
+        composite_img.paste(
+            scan_img,
+            (qr_x + qr_width_px + 10, qr_y + (qr_height_px - scan_img.height) // 2),
+        )
 
         # Draw user's full name and border text
         draw = ImageDraw.Draw(composite_img)
@@ -63,20 +85,31 @@ def print_qr_code(qr_filename, first_name, last_name):
         # Add border text to all sides
         draw.text((0, 0), border_text, font=small_font, fill="black")
         bottom_text_width, _ = small_font.getbbox(border_text)[2:]
-        draw.text(((width_px - bottom_text_width) // 2, height_px - small_font_size), border_text, font=small_font,
-                  fill="black")
+        draw.text(
+            ((width_px - bottom_text_width) // 2, height_px - small_font_size),
+            border_text,
+            font=small_font,
+            fill="black",
+        )
 
-        left_text_img = Image.new("RGB", small_font.getbbox(border_text)[2:], color="white")
+        left_text_img = Image.new(
+            "RGB", small_font.getbbox(border_text)[2:], color="white"
+        )
         left_text_draw = ImageDraw.Draw(left_text_img)
         left_text_draw.text((0, 0), border_text, font=small_font, fill="black")
         left_text_img = left_text_img.rotate(90, expand=True)
         composite_img.paste(left_text_img, (0, (height_px - left_text_img.height) // 2))
 
-        right_text_img = Image.new("RGB", small_font.getbbox(border_text)[2:], color="white")
+        right_text_img = Image.new(
+            "RGB", small_font.getbbox(border_text)[2:], color="white"
+        )
         right_text_draw = ImageDraw.Draw(right_text_img)
         right_text_draw.text((0, 0), border_text, font=small_font, fill="black")
         right_text_img = right_text_img.rotate(270, expand=True)
-        composite_img.paste(right_text_img, (width_px - right_text_img.width, (height_px - right_text_img.height) // 2))
+        composite_img.paste(
+            right_text_img,
+            (width_px - right_text_img.width, (height_px - right_text_img.height) // 2),
+        )
 
         # Save the composite image
         composite_filename = qr_filename.replace(".png", "_composite.png")
@@ -99,7 +132,10 @@ def print_qr_code(qr_filename, first_name, last_name):
         y_position = (printer_height - height_px) // 2
 
         dib = ImageWin.Dib(composite_img)
-        dib.draw(hdc.GetHandleOutput(), (x_position, y_position, x_position + width_px, y_position + height_px))
+        dib.draw(
+            hdc.GetHandleOutput(),
+            (x_position, y_position, x_position + width_px, y_position + height_px),
+        )
 
         hdc.EndPage()
         hdc.EndDoc()
@@ -138,7 +174,9 @@ END:VCARD
 
         img = qr.make_image(fill="black", back_color="white")
         os.makedirs("vcard_qr_codes", exist_ok=True)
-        qr_filename = os.path.join("vcard_qr_codes", f"{first_name}_{last_name}_vcard_qr.png")
+        qr_filename = os.path.join(
+            "vcard_qr_codes", f"{first_name}_{last_name}_vcard_qr.png"
+        )
         img.save(qr_filename)
         print(f"vCard QR code saved as {qr_filename}")
 
@@ -167,14 +205,14 @@ def start_usb_com_scanner():
     scanning = True
     try:
         # Set up the serial connection
-        serial_port = "COM8"  # Change this to your COM port
+        serial_port = SERIAL_PORT  # Change this to your COM port
         baud_rate = 9600
         ser = serial.Serial(serial_port, baud_rate, timeout=1)
 
         print(f"Listening on {serial_port}...")
         while scanning:
-            qr_string = ser.readline().decode('utf-8').strip()  # Read from COM port
-            if qr_string.lower() == "q":
+            qr_string = ser.readline().decode("utf-8").strip()  # Read from COM port
+            if qr_string.lower() == "quit":
                 raise KeyboardInterrupt
             if qr_string:  # Process non-empty input
                 decode_qr_to_vcard(qr_string)
@@ -185,36 +223,44 @@ def start_usb_com_scanner():
     except serial.SerialException as e:
         print(f"Serial error: {e}")
     finally:
-        if 'ser' in locals() and ser.is_open:
+        if "ser" in locals() and ser.is_open:
             ser.close()
 
 
-def main_menu():
-    while True:
-        print("""
-        \n
-        ██████╗ ██╗  ██╗██╗██╗     ███╗   ███╗ █████╗  ██████╗██╗  ██╗
-        ██╔══██╗██║  ██║██║██║     ████╗ ████║██╔══██╗██╔════╝██║  ██║
-        ██████╔╝███████║██║██║     ██╔████╔██║███████║██║     ███████║
-        ██╔═══╝ ██╔══██║██║██║     ██║╚██╔╝██║██╔══██║██║     ██╔══██║
-        ██║     ██║  ██║██║███████╗██║ ╚═╝ ██║██║  ██║╚██████╗██║  ██║
-        ╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
-        12th PhilMach QR Scan & Print System                                                          
-        """)
-        print("1. Start QR Scanner and Printer (USB HID)")
-        print("2. Start QR Scanner and Printer (USB COM Device)")
-        print("0. Quit")
-        choice = input("Enter your choice: ").strip().lower()
+def main_menu(mode):
+    if mode == "dev":
+        while True:
+            print(
+                """
+            \n
+            ██████╗ ██╗  ██╗██╗██╗     ███╗   ███╗ █████╗  ██████╗██╗  ██╗
+            ██╔══██╗██║  ██║██║██║     ████╗ ████║██╔══██╗██╔════╝██║  ██║
+            ██████╔╝███████║██║██║     ██╔████╔██║███████║██║     ███████║
+            ██╔═══╝ ██╔══██║██║██║     ██║╚██╔╝██║██╔══██║██║     ██╔══██║
+            ██║     ██║  ██║██║███████╗██║ ╚═╝ ██║██║  ██║╚██████╗██║  ██║
+            ╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
+            12th PhilMach QR Scan & Print System                                                          
+            """
+            )
+            print("1. Start QR Scanner and Printer (USB HID)")
+            print("2. Start QR Scanner and Printer (USB COM Device)")
+            print("0. Quit")
+            choice = input("Enter your choice: ").strip().lower()
 
-        if choice == "1":
-            start_usb_hid_scanner()
-        elif choice == "2":
+            if choice == "1":
+                start_usb_hid_scanner()
+            elif choice == "2":
+                start_usb_com_scanner()
+            elif choice == "q" or choice == "0":
+                print("Exiting the application.")
+                break
+            else:
+                print("Invalid choice. Please try again.")
+
+    elif mode == "prod":
+        while True:
             start_usb_com_scanner()
-        elif choice == "q" or choice == "0":
-            print("Exiting the application.")
-            break
-        else:
-            print("Invalid choice. Please try again.")
+
 
 if __name__ == "__main__":
-    main_menu()
+    main_menu(MODE)

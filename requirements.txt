@@ -3,10 +3,7 @@ google-auth-oauthlib
 google-auth-httplib2
 google-api-python-client
 Pillow
-pyzbar
 qrcode
-opencv-python-headless
 pywin32
 python-dotenv
-python-barcode
 pyserial

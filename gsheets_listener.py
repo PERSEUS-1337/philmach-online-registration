@@ -6,7 +6,6 @@ import os
 import time
 import logging
 import csv
-import base64
 from dotenv import load_dotenv
 
 import qrcode
@@ -30,33 +29,34 @@ SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 RANGE_NAME = os.getenv("RANGE_NAME")
 CSV_FILE_PATH = os.getenv("CSV_FILE_PATH")
 INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS"))
+SMTP_SERVER = os.getenv("SMTP_SERVER")
+SMTP_PORT = int(os.getenv("SMTP_PORT"))
 
 # Load the service account credentials for Google Sheets and Gmail
 creds = Credentials.from_service_account_file(os.getenv("GSHEET_CREDS"))
 sheets_api = build("sheets", "v4", credentials=creds)
-gmail_api = build('gmail', 'v1', credentials=creds)
+gmail_api = build("gmail", "v1", credentials=creds)
 
 # Ensure necessary directories exist
 os.makedirs("codes", exist_ok=True)
 
 # Set up backup database (CSV)
 if not os.path.exists(CSV_FILE_PATH):
-    with open(CSV_FILE_PATH, 'w', newline='') as file:
+    with open(CSV_FILE_PATH, "w", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(["First Name", "Last Name", "Email", "Number", "Company"])
 
 # Set up logging configuration
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 
 # Code execution starts below
 def save_to_csv(data, file_path):
-    with open(file_path, mode="w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerows(data)
+    with open(file_path, mode="w", newline="") as f:
+        csv_writer = csv.writer(f)
+        csv_writer.writerows(data)
 
 
 def load_from_csv(file_path):
@@ -78,14 +78,14 @@ def get_sheet_data(spreadsheet_id, range_name):
     return result.get("values", [])
 
 
-def detect_changes(previous_data, new_data):
+def detect_changes(prev_data, new_data):
     changes_detected = False
     new_entries = []
 
     # Check if new rows have been added
-    if len(new_data) > len(previous_data):
+    if len(new_data) > len(prev_data):
         changes_detected = True
-        new_entries = new_data[len(previous_data):]
+        new_entries = new_data[len(prev_data):]
 
     return changes_detected, new_entries
 
@@ -96,9 +96,6 @@ def generate_qr_code_with_user_info(first_name, last_name, email, number, compan
 
     # Generate a consistent hash based on user info
     user_hash = generate_hash(user_info)
-
-    # Append the hash to the front of the user info
-    # hashed_user_info = f"{user_hash};{user_info}"
 
     # Create QR code containing the hashed information
     qr = qrcode.QRCode(
@@ -112,9 +109,6 @@ def generate_qr_code_with_user_info(first_name, last_name, email, number, compan
 
     img = qr.make_image(fill="black", back_color="white")
 
-    # Ensure the "codes" directory exists
-    os.makedirs("codes", exist_ok=True)
-
     # Save the QR code in the "codes" directory
     filename = os.path.join("codes", f"{first_name}_{last_name}_qr.png")
     img.save(filename)
@@ -127,13 +121,15 @@ def send_email(to_email, last_name, qr_filename):
 
     from_email = SENDER_EMAIL  # Your Gmail address
     password = SENDER_PASSWORD  # Your Gmail App Password
-    smtp_server = "smtp.gmail.com"
-    smtp_port = 587  # For TLS
+    smtp_server = SMTP_SERVER
+    smtp_port = SMTP_PORT  # For TLS
 
     subject = f"PhilMach 2024 Registration Confirmed - {last_name.upper()}"
-    body = (f"Thank you for registering, Ms./Mr. {last_name}.\n\n"
-            f"Attached is your unique registration QR code.\n"
-            f"Please present this QR code on the day of your attendance to receive your booth QR codes.")
+    body = (
+        f"Thank you for registering, Ms./Mr. {last_name}.\n\n"
+        f"Attached is your unique registration QR code.\n"
+        f"Please present this QR code on the day of your attendance to receive your booth QR codes."
+    )
 
     msg = MIMEMultipart()
     msg["From"] = from_email
@@ -163,8 +159,10 @@ def send_email(to_email, last_name, qr_filename):
         logging.info(f"Email sent to {to_email}.")
 
     except smtplib.SMTPAuthenticationError as e:
-        logging.error(f"SMTP Authentication Error: Could not log in to the SMTP server. "
-                      f"Check your username ({from_email}) and password.")
+        logging.error(
+            f"SMTP Authentication Error: Could not log in to the SMTP server. "
+            f"Check your username ({from_email}) and password."
+        )
     except smtplib.SMTPRecipientsRefused as e:
         logging.error(
             f"SMTP Recipients Refused: The recipient {to_email} was rejected by the server."
@@ -173,10 +171,6 @@ def send_email(to_email, last_name, qr_filename):
         logging.error(f"SMTP Error: {e}")
     except Exception as e:
         logging.error(f"An error occurred: {e}")
-
-
-# Main loop to periodically fetch data
-previous_data = get_sheet_data(SPREADSHEET_ID, RANGE_NAME)
 
 
 def monitor_changes():
@@ -198,7 +192,9 @@ def monitor_changes():
                 logging.info(f"Changes detected: {len(new_entries)} new entries found.")
 
                 for i, entry in enumerate(new_entries):
-                    email, first_name, last_name, number, company = entry[1:6]  # Adjust indices as per the form fields
+                    email, first_name, last_name, number, company = entry[
+                        1:6
+                    ]  # Adjust indices as per the form fields
 
                     qr_filename = generate_qr_code_with_user_info(
                         first_name, last_name, email, number, company

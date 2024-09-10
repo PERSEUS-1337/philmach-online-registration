@@ -11,9 +11,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# Retrieve the predefined salt from the .env file
-HASH_SALT = os.getenv('HASH_SALT')
-
 
 def generate_hash(user_info):
     # Encode the user info to Base64
@@ -26,7 +23,7 @@ def decode_hash(user_hash):
     decoded_info = base64.b32decode(user_hash).decode()
 
     # Split the decoded info by ';' to return the individual components
-    split_info = decoded_info.split(';')
+    split_info = decoded_info.split(";")
     return split_info
 
 
