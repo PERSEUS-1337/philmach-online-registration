@@ -23,8 +23,8 @@ from helpers import generate_hash, decode_hash, clean_file
 load_dotenv()
 
 # Access environment variables
-SENDER_EMAIL = os.getenv("SENDER_EMAIL_v3")
-SENDER_PASSWORD = os.getenv("SENDER_PASSWORD_v3")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 RANGE_NAME = os.getenv("RANGE_NAME")
 CSV_FILE_PATH = os.getenv("CSV_FILE_PATH")
@@ -125,17 +125,25 @@ def send_email(to_email, last_name, qr_filename):
     smtp_port = SMTP_PORT  # For TLS
 
     subject = f"PhilMach 2024 Registration Confirmed - {last_name.upper()}"
+
     body = (
-        f"Thank you for registering, Ms./Mr. {last_name}.\n\n"
-        f"Attached is your unique registration QR code.\n"
-        f"Please present this QR code on the day of your attendance to receive your booth QR codes."
+        f"Dear Ms./Mr. {last_name},<br><br>"
+        f"Thank you for registering for <b>PHILMACH</b> – the <b>Philippines Machinery Exhibition</b>, happening from "
+        f"<b>October 17-19, 2024</b>, at the <b>SMX Convention Center</b> near Mall of Asia, in Pasay, "
+        f"Metro Manila.<br><br>"
+        f"Attached to this email is your unique registration QR code. Please present this QR code upon your arrival "
+        f"at the venue. Our team will scan it to generate your personalized contact QR code, which you can use to "
+        f"easily share your details with exhibitors throughout the convention.<br><br>"
+        f"We look forward to seeing you at the <b>12th PHILMACH 2024</b>!<br><br>"
+        f"Best regards,<br>"
+        f"The 12th PHILMACH 2024 Team."
     )
 
     msg = MIMEMultipart()
     msg["From"] = from_email
     msg["To"] = to_email
     msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain"))
+    msg.attach(MIMEText(body, "html"))
 
     # Attach the vCard QR code
     with open(qr_filename, "rb") as attachment:
