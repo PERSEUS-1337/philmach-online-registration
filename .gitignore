@@ -6,7 +6,6 @@ sheet_data_backup.csv
 test/
 images/
 
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
